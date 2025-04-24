@@ -1,64 +1,78 @@
-// server.js
-
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
+
 const app = express();
-const PORT = 4000;
+const PORT = process.env.PORT || 4000;
+const DATA_FILE = path.join(__dirname, 'data.json');
 
-// Middleware CORS : autoriser uniquement le frontend local
-app.use(cors({
-  origin: 'http://localhost:5173',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type']
-}));
-
-// Middleware pour parser le JSON
+app.use(cors());
 app.use(express.json());
 
-// Exemple de base de données temporaire (à remplacer plus tard par une vraie DB)
-let events = [
-  { id: 1, title: 'DJ Set Nantes', date: '2025-06-01' },
-  { id: 2, title: 'Freelance Mission Web', date: '2025-06-05' }
-];
-
-// ROUTES
-
-// GET all events
+// GET
 app.get('/api/events', (req, res) => {
-  res.json(events);
-});
-
-app.post('/api/events', (req, res) => {
-    const { title, date, location } = req.body;
-    const newEvent = {
-      id: Date.now().toString(),
-      title,
-      date,
-      location,
-    };
-    events.push(newEvent);
-    res.status(201).json(newEvent);
+  fs.readFile(DATA_FILE, 'utf8', (err, data) => {
+    if (err) return res.status(500).send('Erreur serveur');
+    res.json(JSON.parse(data));
   });
-  
-// Modifier un événement
+});
+
+// POST
+app.post('/api/events', (req, res) => {
+  const newEvent = req.body;
+
+  fs.readFile(DATA_FILE, 'utf8', (err, data) => {
+    if (err) return res.status(500).send('Erreur serveur');
+
+    const events = JSON.parse(data);
+    events.push(newEvent);
+
+    fs.writeFile(DATA_FILE, JSON.stringify(events, null, 2), (err) => {
+      if (err) return res.status(500).send('Erreur serveur');
+      res.status(201).json(newEvent);
+    });
+  });
+});
+
+// PUT
 app.put('/api/events/:id', (req, res) => {
-    const { id } = req.params;
-    const { title, date, location, type, status } = req.body;
+  const id = req.params.id;
+  const updatedEvent = req.body;
 
-    const eventIndex = events.findIndex(e => e.id === id);
-    if (eventIndex === -1) return res.status(404).json({ message: 'Événement non trouvé' });
+  fs.readFile(DATA_FILE, 'utf8', (err, data) => {
+    if (err) return res.status(500).send('Erreur serveur');
 
-    events[eventIndex] = { ...events[eventIndex], title, date, location, type, status };
-    res.json(events[eventIndex]);
+    let events = JSON.parse(data);
+    const index = events.findIndex(e => e.id === id);
+    if (index === -1) return res.status(404).send('Événement non trouvé');
+
+    events[index] = updatedEvent;
+
+    fs.writeFile(DATA_FILE, JSON.stringify(events, null, 2), (err) => {
+      if (err) return res.status(500).send('Erreur serveur');
+      res.json(updatedEvent);
+    });
+  });
 });
 
-// Supprimer un événement
+// DELETE
 app.delete('/api/events/:id', (req, res) => {
-    const { id } = req.params;
-    events = events.filter(e => e.id !== id);
-    res.status(204).end();
+  const id = req.params.id;
+
+  fs.readFile(DATA_FILE, 'utf8', (err, data) => {
+    if (err) return res.status(500).send('Erreur serveur');
+
+    let events = JSON.parse(data);
+    const updatedEvents = events.filter(e => e.id !== id);
+
+    fs.writeFile(DATA_FILE, JSON.stringify(updatedEvents, null, 2), (err) => {
+      if (err) return res.status(500).send('Erreur serveur');
+      res.json({ success: true });
+    });
+  });
 });
-// Lancer le serveur
+
 app.listen(PORT, () => {
-  console.log(`✅ Serveur backend démarré sur http://localhost:${PORT}`);
+  console.log(`Serveur backend démarré sur http://localhost:${PORT}`);
 });
